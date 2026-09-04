@@ -43,7 +43,13 @@ export default function LoginPage() {
     setError("");
     try {
       const res = await fetch("/api/auth/demo", { method: "POST" });
-      if (!res.ok) throw new Error("No se pudo iniciar el demo");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          data.error ||
+            "No se pudo iniciar el demo. Ejecuta npm run db:push && npm run db:seed"
+        );
+      }
       router.push("/dashboard");
       router.refresh();
     } catch (err) {

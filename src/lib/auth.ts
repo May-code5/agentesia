@@ -83,9 +83,63 @@ export async function loginWithCredentials(email: string, password: string) {
   return session;
 }
 
+export async function ensureDemoUser() {
+  let user = await prisma.user.findUnique({ where: { email: "admin@maycode.pe" } });
+  if (user) return user;
+
+  let workspace = await prisma.workspace.findFirst({ where: { slug: "maycode-demo" } });
+  if (!workspace) {
+    workspace = await prisma.workspace.create({
+      data: {
+        name: "MAY-CODE Demo",
+        slug: "maycode-demo",
+        timezone: "America/Lima",
+        businessName: "MAY-CODE Studio",
+        settings: {
+          create: {
+            webhookSecret: "demo-webhook-secret",
+            openaiKeyHint: "",
+            anthropicKeyHint: "",
+            whatsappTokenHint: "",
+          },
+        },
+      },
+    });
+  }
+
+  const passwordHash = await bcrypt.hash("demo1234", 10);
+  user = await prisma.user.create({
+    data: {
+      email: "admin@maycode.pe",
+      name: "Admin MAY-CODE",
+      passwordHash,
+      role: "admin",
+      workspaceId: workspace.id,
+    },
+  });
+
+  const agentCount = await prisma.agent.count({ where: { workspaceId: workspace.id } });
+  if (agentCount === 0) {
+    await prisma.agent.create({
+      data: {
+        workspaceId: workspace.id,
+        name: "Luna",
+        systemPrompt:
+          "Eres Luna, la asistente virtual de atencion al cliente de MAY-CODE. Respondes en espanol peruano, clara y profesional.",
+        tone: "amigable",
+        knowledgeMd: "# FAQ MAY-CODE\n\nMAY-CODE es un estudio de software en Lima.",
+        enabledChannels: "WEB,WHATSAPP,INSTAGRAM,EMAIL,VOICE",
+        handoffRules: "Transferir a humano si el cliente lo pide.",
+        isActive: true,
+      },
+    });
+  }
+
+  return user;
+}
+
 export async function loginDemo() {
-  const user = await prisma.user.findUnique({ where: { email: "admin@maycode.pe" } });
-  if (!user) throw new Error("Demo user missing — run db:seed");
+  const user = await ensureDemoUser();
   const session: SessionUser = {
     id: user.id,
     email: user.email,
